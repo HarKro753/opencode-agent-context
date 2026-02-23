@@ -1,0 +1,37 @@
+{
+  "name": "opencode-agent-context",
+  "version": "1.0.0",
+  "description": "Persistent, language-specific memory for your OpenCode coding agent",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "agent-memory",
+    "context",
+    "persistent-memory",
+    "coding-agent"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
