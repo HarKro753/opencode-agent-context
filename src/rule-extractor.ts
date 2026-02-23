@@ -69,7 +69,7 @@ export function extractRule(message: string): string {
 
 export function extractRuleWithLanguage(
   message: string,
-  languageDetector: (msg: string) => string | undefined
+  languageDetector: (msg: string) => string | undefined,
 ): ExtractedRule {
   const language = languageDetector(message);
   const text = extractRule(message);

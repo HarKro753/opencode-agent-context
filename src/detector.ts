@@ -47,7 +47,9 @@ function getExtension(filePath: string): string {
   return filePath.slice(lastDot).toLowerCase();
 }
 
-export function detectLanguagesFromFiles(filePaths: readonly string[]): string[] {
+export function detectLanguagesFromFiles(
+  filePaths: readonly string[],
+): string[] {
   const detected = new Set<string>();
 
   for (const filePath of filePaths) {
@@ -65,7 +67,9 @@ export function detectLanguagesFromFiles(filePaths: readonly string[]): string[]
   return Array.from(detected);
 }
 
-export function detectFrameworksFromFiles(filePaths: readonly string[]): string[] {
+export function detectFrameworksFromFiles(
+  filePaths: readonly string[],
+): string[] {
   const detected = new Set<string>();
   const fileNames = filePaths.map((p) => {
     const parts = p.split("/");
@@ -86,7 +90,9 @@ export function detectFrameworksFromFiles(filePaths: readonly string[]): string[
   return Array.from(detected);
 }
 
-export function detectLanguageFromFilePath(filePath: string): string | undefined {
+export function detectLanguageFromFilePath(
+  filePath: string,
+): string | undefined {
   const ext = getExtension(filePath);
   if (!ext) return undefined;
 

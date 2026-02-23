@@ -1,0 +1,34 @@
+# Source
+src/
+tsconfig.json
+vitest.config.ts
+bun.lock
+
+# Dev/CI
+.github/
+.git/
+.gitignore
+.nvmrc
+.opencode/
+.context/
+
+# Tests
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+coverage/
+
+# Task files
+TASK.md
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

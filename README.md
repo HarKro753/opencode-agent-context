@@ -37,10 +37,10 @@ Trigger phrases like **"always"**, **"never"**, **"prefer"**, **"because"**, **"
 
 ### Slash Commands
 
-| Command | Description |
-| --- | --- |
+| Command            | Description                                  |
+| ------------------ | -------------------------------------------- |
 | `/remember <rule>` | Explicitly save a rule to persistent context |
-| `/context` | View all saved rules, organized by language |
+| `/context`         | View all saved rules, organized by language  |
 
 ### Persistent Storage
 
@@ -106,29 +106,29 @@ You:   /remember in Go, prefer table-driven tests
 
 Detected automatically from file extensions in your project:
 
-| Language | Extensions |
-| --- | --- |
-| TypeScript | `.ts` `.tsx` `.mts` `.cts` |
-| JavaScript | `.js` `.jsx` `.mjs` `.cjs` |
-| Go | `.go` |
-| Python | `.py` `.pyw` |
-| Rust | `.rs` |
-| Ruby | `.rb` |
-| Java | `.java` |
-| Kotlin | `.kt` `.kts` |
-| Swift | `.swift` |
-| C# | `.cs` |
-| C++ | `.cpp` `.cc` `.cxx` `.hpp` `.h` |
-| C | `.c` |
-| PHP | `.php` |
-| Dart | `.dart` |
-| Elixir | `.ex` `.exs` |
-| Erlang | `.erl` `.hrl` |
-| Zig | `.zig` |
-| Lua | `.lua` |
-| Scala | `.scala` `.sc` |
-| Clojure | `.clj` `.cljs` `.cljc` |
-| Haskell | `.hs` |
+| Language   | Extensions                      |
+| ---------- | ------------------------------- |
+| TypeScript | `.ts` `.tsx` `.mts` `.cts`      |
+| JavaScript | `.js` `.jsx` `.mjs` `.cjs`      |
+| Go         | `.go`                           |
+| Python     | `.py` `.pyw`                    |
+| Rust       | `.rs`                           |
+| Ruby       | `.rb`                           |
+| Java       | `.java`                         |
+| Kotlin     | `.kt` `.kts`                    |
+| Swift      | `.swift`                        |
+| C#         | `.cs`                           |
+| C++        | `.cpp` `.cc` `.cxx` `.hpp` `.h` |
+| C          | `.c`                            |
+| PHP        | `.php`                          |
+| Dart       | `.dart`                         |
+| Elixir     | `.ex` `.exs`                    |
+| Erlang     | `.erl` `.hrl`                   |
+| Zig        | `.zig`                          |
+| Lua        | `.lua`                          |
+| Scala      | `.scala` `.sc`                  |
+| Clojure    | `.clj` `.cljs` `.cljc`          |
+| Haskell    | `.hs`                           |
 
 **Frameworks** are also detected: Next.js, React, Vue, Svelte, Astro, Tailwind, Prisma, and Drizzle.
 

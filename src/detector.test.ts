@@ -60,7 +60,11 @@ describe("detectLanguagesFromFiles", () => {
   });
 
   it("returns empty for unknown extensions", () => {
-    const result = detectLanguagesFromFiles(["README.md", "Dockerfile", ".gitignore"]);
+    const result = detectLanguagesFromFiles([
+      "README.md",
+      "Dockerfile",
+      ".gitignore",
+    ]);
     expect(result).toEqual([]);
   });
 
@@ -90,7 +94,10 @@ describe("detectLanguagesFromFiles", () => {
   });
 
   it("detects Elixir from .ex and .exs files", () => {
-    const result = detectLanguagesFromFiles(["lib/app.ex", "test/app_test.exs"]);
+    const result = detectLanguagesFromFiles([
+      "lib/app.ex",
+      "test/app_test.exs",
+    ]);
     expect(result).toContain("elixir");
   });
 
@@ -111,7 +118,9 @@ describe("detectLanguageFromFilePath", () => {
   });
 
   it("returns typescript for .tsx file", () => {
-    expect(detectLanguageFromFilePath("components/Button.tsx")).toBe("typescript");
+    expect(detectLanguageFromFilePath("components/Button.tsx")).toBe(
+      "typescript",
+    );
   });
 
   it("returns go for .go file", () => {
@@ -138,7 +147,9 @@ describe("detectLanguageFromFilePath", () => {
 
 describe("detectLanguageFromMessage", () => {
   it("detects TypeScript mentions", () => {
-    expect(detectLanguageFromMessage("in TypeScript, use strict types")).toBe("typescript");
+    expect(detectLanguageFromMessage("in TypeScript, use strict types")).toBe(
+      "typescript",
+    );
   });
 
   it("detects Go mentions", () => {
@@ -150,29 +161,42 @@ describe("detectLanguageFromMessage", () => {
   });
 
   it("detects Python mentions", () => {
-    expect(detectLanguageFromMessage("in Python, use type hints")).toBe("python");
+    expect(detectLanguageFromMessage("in Python, use type hints")).toBe(
+      "python",
+    );
   });
 
   it("detects React mentions", () => {
-    expect(detectLanguageFromMessage("in React, use functional components")).toBe("react");
+    expect(
+      detectLanguageFromMessage("in React, use functional components"),
+    ).toBe("react");
   });
 
   it("detects Next.js mentions", () => {
-    expect(detectLanguageFromMessage("in NextJS, use server components")).toBe("nextjs");
+    expect(detectLanguageFromMessage("in NextJS, use server components")).toBe(
+      "nextjs",
+    );
   });
 
   it("returns undefined for generic messages", () => {
-    expect(detectLanguageFromMessage("always handle errors explicitly")).toBeUndefined();
+    expect(
+      detectLanguageFromMessage("always handle errors explicitly"),
+    ).toBeUndefined();
   });
 
   it("is case-insensitive", () => {
-    expect(detectLanguageFromMessage("in TYPESCRIPT, prefer const")).toBe("typescript");
+    expect(detectLanguageFromMessage("in TYPESCRIPT, prefer const")).toBe(
+      "typescript",
+    );
   });
 });
 
 describe("detectFrameworksFromFiles", () => {
   it("detects Next.js from config file", () => {
-    const result = detectFrameworksFromFiles(["next.config.js", "src/index.ts"]);
+    const result = detectFrameworksFromFiles([
+      "next.config.js",
+      "src/index.ts",
+    ]);
     expect(result).toContain("nextjs");
   });
 

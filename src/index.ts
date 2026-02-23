@@ -1,68 +1,24 @@
-import { detectLanguagesFromFiles, detectLanguageFromFilePath, detectFrameworksFromFiles } from "./detector.js";
+import { tool } from "@opencode-ai/plugin";
+import type { Plugin } from "@opencode-ai/plugin";
+import {
+  detectLanguagesFromFiles,
+  detectLanguageFromFilePath,
+  detectFrameworksFromFiles,
+} from "./detector.js";
 import { isRememberWorthy, extractRule } from "./rule-extractor.js";
 import { addRule, getAllRules, listContextFiles } from "./context-store.js";
 import { buildCompactContextString } from "./injector.js";
 import { detectLanguageFromMessage } from "./detector.js";
 
-interface PluginContext {
-  readonly project: unknown;
-  readonly client: {
-    app: {
-      log(opts: { body: { service: string; level: string; message: string; extra?: Record<string, unknown> } }): Promise<void>;
-    };
-    find: {
-      files(opts: { query: { query: string; type: string } }): Promise<string[]>;
-    };
-    tui: {
-      showToast(opts: { body: { message: string; variant: string } }): Promise<void>;
-    };
-  };
-  readonly $: unknown;
-  readonly directory: string;
-  readonly worktree: string;
-}
-
-interface ToolInput {
-  readonly tool: string;
-  readonly args?: Record<string, unknown>;
-  readonly result?: unknown;
-}
-
-interface ToolOutput {
-  args: Record<string, unknown>;
-  result: unknown;
-}
-
-interface CompactingOutput {
-  context: string[];
-  prompt?: string;
-}
-
-interface EventPayload {
-  readonly event: {
-    readonly type: string;
-    readonly properties?: Record<string, unknown>;
-  };
-}
-
-interface ToolDefinition {
-  description: string;
-  args: Record<string, unknown>;
-  execute(args: Record<string, string>, context: { directory: string; worktree: string; sessionID: string }): Promise<string>;
-}
-
-interface HooksObject {
-  event: (payload: EventPayload) => Promise<void>;
-  "tool.execute.after": (input: ToolInput, output: ToolOutput) => Promise<void>;
-  "experimental.session.compacting": (input: unknown, output: CompactingOutput) => Promise<void>;
-  tool: Record<string, ToolDefinition>;
-}
-
-export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObject> => {
+export const AgentContextPlugin: Plugin = async (ctx) => {
   const projectRoot = ctx.directory;
   const activeLanguages = new Set<string>();
 
-  async function log(level: string, message: string, extra?: Record<string, unknown>): Promise<void> {
+  async function log(
+    level: "debug" | "info" | "warn" | "error",
+    message: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
     try {
       await ctx.client.app.log({
         body: { service: "agent-context", level, message, extra },
@@ -75,7 +31,7 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
   async function detectProjectLanguages(): Promise<void> {
     try {
       const files = await ctx.client.find.files({
-        query: { query: "*", type: "file" },
+        query: { query: "*" },
       });
 
       if (Array.isArray(files)) {
@@ -113,14 +69,22 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
     }
   }
 
-  await detectProjectLanguages();
-  await log("info", "Agent context plugin initialized", {
-    languages: Array.from(activeLanguages),
-    contextFiles: listContextFiles(projectRoot),
-  });
+  // Defer language detection to first hook call — calling client.* during
+  // plugin init blocks OpenCode startup because the SDK isn't ready yet.
+  let initialized = false;
+  async function ensureInitialized(): Promise<void> {
+    if (initialized) return;
+    initialized = true;
+    await detectProjectLanguages();
+    await log("info", "Agent context plugin initialized", {
+      languages: Array.from(activeLanguages),
+      contextFiles: listContextFiles(projectRoot),
+    });
+  }
 
   return {
     event: async ({ event }) => {
+      await ensureInitialized();
       if (event.type === "message.updated" && event.properties) {
         const props = event.properties as Record<string, unknown>;
         if (props["role"] === "user" && typeof props["text"] === "string") {
@@ -129,8 +93,12 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
       }
     },
 
-    "tool.execute.after": async (input: ToolInput, _output: ToolOutput) => {
-      if (input.tool === "read" && input.args && typeof input.args["filePath"] === "string") {
+    "tool.execute.after": async (input, _output) => {
+      if (
+        input.tool === "read" &&
+        input.args &&
+        typeof input.args["filePath"] === "string"
+      ) {
         const filePath = input.args["filePath"] as string;
         const lang = detectLanguageFromFilePath(filePath);
         if (lang) {
@@ -139,10 +107,10 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
       }
     },
 
-    "experimental.session.compacting": async (_input: unknown, output: CompactingOutput) => {
+    "experimental.session.compacting": async (_input, output) => {
       const contextStrings = buildCompactContextString(
         projectRoot,
-        Array.from(activeLanguages)
+        Array.from(activeLanguages),
       );
 
       for (const ctx of contextStrings) {
@@ -156,21 +124,25 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
     },
 
     tool: {
-      remember: {
+      remember: tool({
         description:
           "Save a coding rule or convention to persistent context. " +
           "Use this when the user says /remember followed by a rule. " +
           "The rule will be remembered across sessions.",
         args: {
-          rule: { type: "string", description: "The rule or convention to remember" },
-          language: { type: "string", description: "The language/framework this rule applies to (e.g. typescript, go, general). Defaults to general." },
+          rule: tool.schema
+            .string()
+            .describe("The rule or convention to remember"),
+          language: tool.schema
+            .string()
+            .describe(
+              "The language/framework this rule applies to (e.g. typescript, go, general). Defaults to general.",
+            )
+            .optional(),
         },
-        async execute(
-          args: Record<string, string>,
-          context: { directory: string }
-        ): Promise<string> {
-          const rule = args["rule"];
-          const language = args["language"] ?? "general";
+        async execute(args, context) {
+          const rule = args.rule;
+          const language = args.language ?? "general";
 
           if (!rule || rule.trim().length === 0) {
             return "No rule provided. Usage: /remember <rule>";
@@ -182,16 +154,13 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
 
           return `Rule saved to ${language} context:\n> ${cleaned}`;
         },
-      },
-      context: {
+      }),
+      context: tool({
         description:
           "View all saved coding rules and conventions. " +
           "Shows rules organized by language/framework.",
         args: {},
-        async execute(
-          _args: Record<string, string>,
-          context: { directory: string }
-        ): Promise<string> {
+        async execute(_args, context) {
           const allRules = getAllRules(context.directory);
           const entries = Object.entries(allRules);
 
@@ -207,12 +176,30 @@ export const AgentContextPlugin = async (ctx: PluginContext): Promise<HooksObjec
 
           return `## Saved Context Rules\n\n${sections.join("\n\n")}`;
         },
-      },
+      }),
     },
   };
 };
 
-export { detectLanguagesFromFiles, detectLanguageFromFilePath, detectLanguageFromMessage, detectFrameworksFromFiles } from "./detector.js";
-export { isRememberWorthy, extractRule, extractRuleWithLanguage } from "./rule-extractor.js";
-export { readRules, addRule, getAllRules, getContextFileContent, listContextFiles } from "./context-store.js";
-export { buildContextInjection, buildCompactContextString } from "./injector.js";
+export {
+  detectLanguagesFromFiles,
+  detectLanguageFromFilePath,
+  detectLanguageFromMessage,
+  detectFrameworksFromFiles,
+} from "./detector.js";
+export {
+  isRememberWorthy,
+  extractRule,
+  extractRuleWithLanguage,
+} from "./rule-extractor.js";
+export {
+  readRules,
+  addRule,
+  getAllRules,
+  getContextFileContent,
+  listContextFiles,
+} from "./context-store.js";
+export {
+  buildContextInjection,
+  buildCompactContextString,
+} from "./injector.js";

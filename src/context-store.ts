@@ -1,4 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readdirSync,
+} from "node:fs";
 import { join } from "node:path";
 
 const CONTEXT_DIR = ".opencode/context";
@@ -28,7 +34,11 @@ export function readRules(projectRoot: string, language: string): string[] {
   return parseRulesFromMarkdown(content);
 }
 
-export function addRule(projectRoot: string, language: string, rule: string): void {
+export function addRule(
+  projectRoot: string,
+  language: string,
+  rule: string,
+): void {
   ensureContextDir(projectRoot);
 
   const filePath = getContextFilePath(projectRoot, language);
@@ -36,7 +46,7 @@ export function addRule(projectRoot: string, language: string, rule: string): vo
 
   const normalizedRule = rule.trim();
   const isDuplicate = existing.some(
-    (r) => r.toLowerCase() === normalizedRule.toLowerCase()
+    (r) => r.toLowerCase() === normalizedRule.toLowerCase(),
   );
 
   if (isDuplicate) return;
@@ -72,7 +82,10 @@ export function getAllRules(projectRoot: string): Record<string, string[]> {
   return result;
 }
 
-export function getContextFileContent(projectRoot: string, language: string): string | undefined {
+export function getContextFileContent(
+  projectRoot: string,
+  language: string,
+): string | undefined {
   const filePath = getContextFilePath(projectRoot, language);
 
   if (!existsSync(filePath)) return undefined;

@@ -2,7 +2,7 @@ import { getContextFileContent, listContextFiles } from "./context-store.js";
 
 export function buildContextInjection(
   projectRoot: string,
-  activeLanguages: readonly string[]
+  activeLanguages: readonly string[],
 ): string {
   const languagesToInject = new Set<string>(activeLanguages);
 
@@ -32,7 +32,7 @@ export function buildContextInjection(
 
 export function buildCompactContextString(
   projectRoot: string,
-  activeLanguages: readonly string[]
+  activeLanguages: readonly string[],
 ): string[] {
   const injection = buildContextInjection(projectRoot, activeLanguages);
   if (!injection) return [];
