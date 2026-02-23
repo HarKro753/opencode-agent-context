@@ -1,9 +1,20 @@
-/**
- * Type declarations for @opencode-ai/plugin peer dependency.
- * These are minimal stubs that allow the package to typecheck
- * without requiring the peer dependency to be installed.
- */
 declare module "@opencode-ai/plugin" {
+  export interface SessionInfo {
+    id: string;
+    title?: string;
+  }
+
+  export interface MessagePart {
+    type: "text";
+    text: string;
+  }
+
+  export interface PromptBody {
+    model?: { providerID: string; modelID: string };
+    parts: MessagePart[];
+    noReply?: boolean;
+  }
+
   export interface PluginContext {
     directory: string;
     client: {
@@ -17,6 +28,16 @@ declare module "@opencode-ai/plugin" {
           };
         }): Promise<void>;
       };
+      session: {
+        create(params: { body: { title?: string } }): Promise<SessionInfo>;
+        prompt(params: {
+          path: { id: string };
+          body: PromptBody;
+        }): Promise<unknown>;
+        delete(params: { path: { id: string } }): Promise<void>;
+        abort(params: { path: { id: string } }): Promise<void>;
+        list(): Promise<SessionInfo[]>;
+      };
       find: {
         files(params: { query: { query: string } }): Promise<string[]>;
       };
@@ -29,14 +50,16 @@ declare module "@opencode-ai/plugin" {
   }
 
   export type Plugin = (ctx: PluginContext) => Promise<{
-    event?: (input: { event: { type: string; properties?: unknown } }) => Promise<void>;
+    event?: (input: {
+      event: { type: string; properties?: unknown };
+    }) => Promise<void>;
     "tool.execute.after"?: (
       input: { tool: string; args?: Record<string, unknown> },
       output: unknown,
     ) => Promise<void>;
     "experimental.session.compacting"?: (
       input: unknown,
-      output: { context: string[] },
+      output: { context: string[]; prompt?: string },
     ) => Promise<void>;
     tool?: Record<string, unknown>;
   }>;
@@ -50,10 +73,18 @@ declare module "@opencode-ai/plugin" {
     string(): SchemaChain;
   }
 
+  interface ToolContext {
+    agent: string;
+    sessionID: string;
+    messageID: string;
+    directory: string;
+    worktree: string;
+  }
+
   interface ToolOptions {
     description: string;
     args: Record<string, unknown>;
-    execute: (args: Record<string, string>, context: { directory: string }) => Promise<string>;
+    execute: (args: Record<string, string>, context: ToolContext) => Promise<string>;
   }
 
   interface ToolFunction {

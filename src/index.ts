@@ -1,123 +1,174 @@
 import { tool } from "@opencode-ai/plugin";
-import type { Plugin } from "@opencode-ai/plugin";
-import {
-  detectLanguagesFromFiles,
-  detectLanguageFromFilePath,
-  detectFrameworksFromFiles,
-} from "./detector.js";
-import { isRememberWorthy, extractRule } from "./rule-extractor.js";
-import { addRule, getAllRules, listContextFiles } from "./context-store.js";
-import { buildCompactContextString } from "./injector.js";
-import { detectLanguageFromMessage } from "./detector.js";
+import type { Plugin, PluginContext } from "@opencode-ai/plugin";
+import type { LogLevel } from "./models.js";
+import { Detector } from "./detector.js";
+import { ContextStore } from "./context-store.js";
+import { Injector } from "./injector.js";
+import { RuleReasoner } from "./rule-reasoner.js";
+
+function logToService(
+  client: PluginContext["client"],
+  level: LogLevel,
+  message: string,
+  extra?: Record<string, unknown>,
+): Promise<void> {
+  return client.app
+    .log({ body: { service: "agent-context", level, message, extra } })
+    .catch(() => {});
+}
 
 export const AgentContextPlugin: Plugin = async (ctx) => {
   const projectRoot = ctx.directory;
   const activeLanguages = new Set<string>();
+  const userMessages: string[] = [];
+  let lastExtractedAt = 0;
+  let initialized = false;
 
-  async function log(
-    level: "debug" | "info" | "warn" | "error",
-    message: string,
-    extra?: Record<string, unknown>,
-  ): Promise<void> {
-    try {
-      await ctx.client.app.log({
-        body: { service: "agent-context", level, message, extra },
-      });
-    } catch {
-      // Fail silently — logging should never break the plugin
+  async function ensureInitialized(): Promise<void> {
+    if (initialized) {
+      return;
     }
-  }
+    initialized = true;
 
-  async function detectProjectLanguages(): Promise<void> {
     try {
-      const files = await ctx.client.find.files({
-        query: { query: "*" },
-      });
+      const files = await ctx.client.find.files({ query: { query: "*" } });
 
       if (Array.isArray(files)) {
-        const languages = detectLanguagesFromFiles(files);
-        const frameworks = detectFrameworksFromFiles(files);
-
-        for (const lang of languages) activeLanguages.add(lang);
-        for (const fw of frameworks) activeLanguages.add(fw);
+        for (const lang of Detector.detectLanguagesFromFiles(files)) {
+          activeLanguages.add(lang);
+        }
+        for (const fw of Detector.detectFrameworksFromFiles(files)) {
+          activeLanguages.add(fw);
+        }
       }
     } catch {
-      await log("debug", "Could not auto-detect project languages");
+      await logToService(ctx.client, "debug", "Could not auto-detect project languages");
     }
+
+    await logToService(ctx.client, "info", "Agent context plugin initialized", {
+      languages: Array.from(activeLanguages),
+      contextFiles: ContextStore.listContextFiles(projectRoot),
+    });
   }
 
-  async function handleUserMessage(text: string): Promise<void> {
-    if (!isRememberWorthy(text)) return;
+  async function extractRulesFromConversation(): Promise<void> {
+    if (userMessages.length === 0) {
+      return;
+    }
 
-    const language = detectLanguageFromMessage(text) ?? "general";
-    const rule = extractRule(text);
+    const currentMessageCount = userMessages.length;
+    if (currentMessageCount === lastExtractedAt) {
+      return;
+    }
 
-    addRule(projectRoot, language, rule);
-    activeLanguages.add(language);
-
-    await log("info", `Saved rule to ${language}: ${rule}`);
+    const existingRules = Object.values(ContextStore.getAllRules(projectRoot)).flat();
+    const prompt = RuleReasoner.buildExtractionPrompt(userMessages, existingRules);
+    let session: { id: string } | undefined;
 
     try {
-      await ctx.client.tui.showToast({
+      session = await ctx.client.session.create({
+        body: { title: "[agent-context] rule extraction" },
+      });
+
+      const result = await ctx.client.session.prompt({
+        path: { id: session.id },
         body: {
-          message: `Rule saved to ${language} context`,
-          variant: "success",
+          parts: [{ type: "text", text: RuleReasoner.getSystemPrompt() + "\n\n" + prompt }],
         },
       });
-    } catch {
-      // Toast is best-effort
-    }
-  }
 
-  // Defer language detection to first hook call — calling client.* during
-  // plugin init blocks OpenCode startup because the SDK isn't ready yet.
-  let initialized = false;
-  async function ensureInitialized(): Promise<void> {
-    if (initialized) return;
-    initialized = true;
-    await detectProjectLanguages();
-    await log("info", "Agent context plugin initialized", {
-      languages: Array.from(activeLanguages),
-      contextFiles: listContextFiles(projectRoot),
-    });
+      const responseText = RuleReasoner.extractTextFromResult(result);
+      if (!responseText) {
+        await logToService(ctx.client, "debug", "No response from extraction session");
+        return;
+      }
+
+      const extracted = RuleReasoner.parseExtractionResponse(responseText);
+      if (extracted.length === 0) {
+        await logToService(ctx.client, "debug", "LLM found no new rules to extract");
+        lastExtractedAt = currentMessageCount;
+        return;
+      }
+
+      for (const { rule, language } of extracted) {
+        ContextStore.addRule(projectRoot, language, RuleReasoner.normalizeRule(rule));
+        activeLanguages.add(language);
+      }
+
+      lastExtractedAt = currentMessageCount;
+
+      await logToService(ctx.client, "info", `Extracted ${extracted.length} rules from conversation`, {
+        rules: extracted,
+      });
+
+      const uniqueLanguages = [...new Set(extracted.map((r) => r.language))];
+      const plural = extracted.length > 1 ? "s" : "";
+      await ctx.client.tui
+        .showToast({
+          body: {
+            message: `${extracted.length} rule${plural} saved to ${uniqueLanguages.join(", ")} context`,
+            variant: "success",
+          },
+        })
+        .catch(() => {});
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      await logToService(ctx.client, "warn", "Rule extraction failed", { error: errorMessage });
+    } finally {
+      if (session) {
+        await ctx.client.session.delete({ path: { id: session.id } }).catch(() => {});
+      }
+    }
   }
 
   return {
     event: async ({ event }) => {
       await ensureInitialized();
-      if (event.type === "message.updated" && event.properties) {
-        const props = event.properties as Record<string, unknown>;
-        if (props["role"] === "user" && typeof props["text"] === "string") {
-          await handleUserMessage(props["text"] as string);
-        }
+
+      if (
+        event.type === "message.updated" &&
+        event.properties &&
+        (event.properties as Record<string, unknown>)["role"] === "user" &&
+        typeof (event.properties as Record<string, unknown>)["text"] === "string"
+      ) {
+        userMessages.push((event.properties as Record<string, unknown>)["text"] as string);
+      }
+
+      if (event.type === "session.idle") {
+        await extractRulesFromConversation();
       }
     },
 
     "tool.execute.after": async (input, _output) => {
-      if (
-        input.tool === "read" &&
-        input.args &&
-        typeof input.args["filePath"] === "string"
-      ) {
-        const filePath = input.args["filePath"] as string;
-        const lang = detectLanguageFromFilePath(filePath);
-        if (lang) {
-          activeLanguages.add(lang);
-        }
+      await ensureInitialized();
+
+      const isFileRead = input.tool === "read"
+        && input.args
+        && typeof input.args["filePath"] === "string";
+
+      if (!isFileRead) {
+        return;
+      }
+
+      const lang = Detector.detectLanguageFromFilePath(input.args!["filePath"] as string);
+      if (lang) {
+        activeLanguages.add(lang);
       }
     },
 
     "experimental.session.compacting": async (_input, output) => {
-      const contextStrings = buildCompactContextString(
+      await ensureInitialized();
+
+      const contextStrings = Injector.buildCompactContextString(
         projectRoot,
         Array.from(activeLanguages),
       );
 
-      for (const ctx of contextStrings) {
-        output.context.push(ctx);
+      for (const entry of contextStrings) {
+        output.context.push(entry);
       }
 
-      await log("debug", "Injected context into compaction", {
+      await logToService(ctx.client, "debug", "Injected context into compaction", {
         languages: Array.from(activeLanguages),
         contextCount: contextStrings.length,
       });
@@ -126,9 +177,9 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
     tool: {
       remember: tool({
         description:
-          "Save a coding rule or convention to persistent context. " +
-          "Use this when the user says /remember followed by a rule. " +
-          "The rule will be remembered across sessions.",
+          "Explicitly save a coding rule or convention to persistent memory. " +
+          "The rule will be remembered across sessions, compactions, and restarts. " +
+          "Use this when the user explicitly asks to remember something with /remember.",
         args: {
           rule: tool.schema
             .string()
@@ -148,24 +199,27 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
             return "No rule provided. Usage: /remember <rule>";
           }
 
-          const cleaned = extractRule(rule);
-          addRule(context.directory, language, cleaned);
+          const cleaned = RuleReasoner.normalizeRule(rule);
+          ContextStore.addRule(context.directory, language, cleaned);
           activeLanguages.add(language);
+
+          await logToService(ctx.client, "info", `Rule explicitly saved to ${language}: ${cleaned}`);
 
           return `Rule saved to ${language} context:\n> ${cleaned}`;
         },
       }),
+
       context: tool({
         description:
           "View all saved coding rules and conventions. " +
           "Shows rules organized by language/framework.",
         args: {},
         async execute(_args, context) {
-          const allRules = getAllRules(context.directory);
+          const allRules = ContextStore.getAllRules(context.directory);
           const entries = Object.entries(allRules);
 
           if (entries.length === 0) {
-            return "No rules saved yet. Use /remember to save a rule, or just explain a preference and it will be auto-detected.";
+            return "No rules saved yet. Just express preferences naturally — they'll be saved automatically after each turn. Or use /remember to save one explicitly.";
           }
 
           const sections = entries.map(([lang, rules]) => {
@@ -181,25 +235,13 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
   };
 };
 
-export {
-  detectLanguagesFromFiles,
-  detectLanguageFromFilePath,
-  detectLanguageFromMessage,
-  detectFrameworksFromFiles,
-} from "./detector.js";
-export {
-  isRememberWorthy,
-  extractRule,
-  extractRuleWithLanguage,
-} from "./rule-extractor.js";
-export {
-  readRules,
-  addRule,
-  getAllRules,
-  getContextFileContent,
-  listContextFiles,
-} from "./context-store.js";
-export {
-  buildContextInjection,
-  buildCompactContextString,
-} from "./injector.js";
+export { Detector } from "./detector.js";
+export { ContextStore } from "./context-store.js";
+export { Injector } from "./injector.js";
+export { RuleReasoner } from "./rule-reasoner.js";
+export type {
+  ExtractedRuleFromLLM,
+  LanguageMapping,
+  LanguagePattern,
+  LogLevel,
+} from "./models.js";

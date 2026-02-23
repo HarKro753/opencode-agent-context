@@ -15,10 +15,6 @@
       "import": "./dist/detector.js",
       "types": "./dist/detector.d.ts"
     },
-    "./rule-extractor": {
-      "import": "./dist/rule-extractor.js",
-      "types": "./dist/rule-extractor.d.ts"
-    },
     "./context-store": {
       "import": "./dist/context-store.js",
       "types": "./dist/context-store.d.ts"
@@ -26,6 +22,10 @@
     "./injector": {
       "import": "./dist/injector.js",
       "types": "./dist/injector.d.ts"
+    },
+    "./rule-reasoner": {
+      "import": "./dist/rule-reasoner.js",
+      "types": "./dist/rule-reasoner.d.ts"
     }
   },
   "files": [
@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/system-prompt.txt dist/system-prompt.txt",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "typecheck": "tsc --noEmit",

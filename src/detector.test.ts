@@ -1,45 +1,39 @@
 import { describe, it, expect } from "vitest";
-import {
-  detectLanguagesFromFiles,
-  detectLanguageFromFilePath,
-  detectLanguageFromMessage,
-  detectFrameworksFromFiles,
-  getAllSupportedLanguages,
-} from "./detector.js";
+import { Detector } from "./detector.js";
 
 describe("detectLanguagesFromFiles", () => {
   it("detects TypeScript from .ts files", () => {
-    const result = detectLanguagesFromFiles(["src/index.ts", "src/utils.ts"]);
+    const result = Detector.detectLanguagesFromFiles(["src/index.ts", "src/utils.ts"]);
     expect(result).toContain("typescript");
   });
 
   it("detects TypeScript from .tsx files", () => {
-    const result = detectLanguagesFromFiles(["src/App.tsx"]);
+    const result = Detector.detectLanguagesFromFiles(["src/App.tsx"]);
     expect(result).toContain("typescript");
   });
 
   it("detects JavaScript from .js files", () => {
-    const result = detectLanguagesFromFiles(["server.js", "config.mjs"]);
+    const result = Detector.detectLanguagesFromFiles(["server.js", "config.mjs"]);
     expect(result).toContain("javascript");
   });
 
   it("detects Go from .go files", () => {
-    const result = detectLanguagesFromFiles(["main.go", "handlers/user.go"]);
+    const result = Detector.detectLanguagesFromFiles(["main.go", "handlers/user.go"]);
     expect(result).toContain("go");
   });
 
   it("detects Python from .py files", () => {
-    const result = detectLanguagesFromFiles(["app.py", "tests/test_main.py"]);
+    const result = Detector.detectLanguagesFromFiles(["app.py", "tests/test_main.py"]);
     expect(result).toContain("python");
   });
 
   it("detects Rust from .rs files", () => {
-    const result = detectLanguagesFromFiles(["src/main.rs", "src/lib.rs"]);
+    const result = Detector.detectLanguagesFromFiles(["src/main.rs", "src/lib.rs"]);
     expect(result).toContain("rust");
   });
 
   it("detects multiple languages", () => {
-    const result = detectLanguagesFromFiles([
+    const result = Detector.detectLanguagesFromFiles([
       "src/index.ts",
       "backend/main.go",
       "scripts/deploy.py",
@@ -51,7 +45,7 @@ describe("detectLanguagesFromFiles", () => {
   });
 
   it("deduplicates languages", () => {
-    const result = detectLanguagesFromFiles([
+    const result = Detector.detectLanguagesFromFiles([
       "src/index.ts",
       "src/utils.ts",
       "src/types.ts",
@@ -60,7 +54,7 @@ describe("detectLanguagesFromFiles", () => {
   });
 
   it("returns empty for unknown extensions", () => {
-    const result = detectLanguagesFromFiles([
+    const result = Detector.detectLanguagesFromFiles([
       "README.md",
       "Dockerfile",
       ".gitignore",
@@ -69,32 +63,32 @@ describe("detectLanguagesFromFiles", () => {
   });
 
   it("handles empty input", () => {
-    const result = detectLanguagesFromFiles([]);
+    const result = Detector.detectLanguagesFromFiles([]);
     expect(result).toEqual([]);
   });
 
   it("detects Ruby from .rb files", () => {
-    const result = detectLanguagesFromFiles(["app.rb", "Gemfile"]);
+    const result = Detector.detectLanguagesFromFiles(["app.rb", "Gemfile"]);
     expect(result).toContain("ruby");
   });
 
   it("detects Java from .java files", () => {
-    const result = detectLanguagesFromFiles(["src/Main.java"]);
+    const result = Detector.detectLanguagesFromFiles(["src/Main.java"]);
     expect(result).toContain("java");
   });
 
   it("detects C# from .cs files", () => {
-    const result = detectLanguagesFromFiles(["Program.cs"]);
+    const result = Detector.detectLanguagesFromFiles(["Program.cs"]);
     expect(result).toContain("csharp");
   });
 
   it("detects PHP from .php files", () => {
-    const result = detectLanguagesFromFiles(["index.php"]);
+    const result = Detector.detectLanguagesFromFiles(["index.php"]);
     expect(result).toContain("php");
   });
 
   it("detects Elixir from .ex and .exs files", () => {
-    const result = detectLanguagesFromFiles([
+    const result = Detector.detectLanguagesFromFiles([
       "lib/app.ex",
       "test/app_test.exs",
     ]);
@@ -102,90 +96,90 @@ describe("detectLanguagesFromFiles", () => {
   });
 
   it("detects Vue from .vue files", () => {
-    const result = detectLanguagesFromFiles(["src/App.vue"]);
+    const result = Detector.detectLanguagesFromFiles(["src/App.vue"]);
     expect(result).toContain("vue");
   });
 
   it("detects Svelte from .svelte files", () => {
-    const result = detectLanguagesFromFiles(["src/App.svelte"]);
+    const result = Detector.detectLanguagesFromFiles(["src/App.svelte"]);
     expect(result).toContain("svelte");
   });
 });
 
 describe("detectLanguageFromFilePath", () => {
   it("returns typescript for .ts file", () => {
-    expect(detectLanguageFromFilePath("src/index.ts")).toBe("typescript");
+    expect(Detector.detectLanguageFromFilePath("src/index.ts")).toBe("typescript");
   });
 
   it("returns typescript for .tsx file", () => {
-    expect(detectLanguageFromFilePath("components/Button.tsx")).toBe(
+    expect(Detector.detectLanguageFromFilePath("components/Button.tsx")).toBe(
       "typescript",
     );
   });
 
   it("returns go for .go file", () => {
-    expect(detectLanguageFromFilePath("main.go")).toBe("go");
+    expect(Detector.detectLanguageFromFilePath("main.go")).toBe("go");
   });
 
   it("returns python for .py file", () => {
-    expect(detectLanguageFromFilePath("app.py")).toBe("python");
+    expect(Detector.detectLanguageFromFilePath("app.py")).toBe("python");
   });
 
   it("returns undefined for unknown extension", () => {
-    expect(detectLanguageFromFilePath("README.md")).toBeUndefined();
+    expect(Detector.detectLanguageFromFilePath("README.md")).toBeUndefined();
   });
 
   it("returns undefined for files without extension", () => {
-    expect(detectLanguageFromFilePath("Makefile")).toBeUndefined();
+    expect(Detector.detectLanguageFromFilePath("Makefile")).toBeUndefined();
   });
 
   it("handles case-insensitive extensions", () => {
-    expect(detectLanguageFromFilePath("App.TS")).toBe("typescript");
-    expect(detectLanguageFromFilePath("main.GO")).toBe("go");
+    expect(Detector.detectLanguageFromFilePath("App.TS")).toBe("typescript");
+    expect(Detector.detectLanguageFromFilePath("main.GO")).toBe("go");
   });
 });
 
 describe("detectLanguageFromMessage", () => {
   it("detects TypeScript mentions", () => {
-    expect(detectLanguageFromMessage("in TypeScript, use strict types")).toBe(
+    expect(Detector.detectLanguageFromMessage("in TypeScript, use strict types")).toBe(
       "typescript",
     );
   });
 
   it("detects Go mentions", () => {
-    expect(detectLanguageFromMessage("in Go, prefer interfaces")).toBe("go");
+    expect(Detector.detectLanguageFromMessage("in Go, prefer interfaces")).toBe("go");
   });
 
   it("detects Golang mentions", () => {
-    expect(detectLanguageFromMessage("in golang, use table tests")).toBe("go");
+    expect(Detector.detectLanguageFromMessage("in golang, use table tests")).toBe("go");
   });
 
   it("detects Python mentions", () => {
-    expect(detectLanguageFromMessage("in Python, use type hints")).toBe(
+    expect(Detector.detectLanguageFromMessage("in Python, use type hints")).toBe(
       "python",
     );
   });
 
   it("detects React mentions", () => {
     expect(
-      detectLanguageFromMessage("in React, use functional components"),
+      Detector.detectLanguageFromMessage("in React, use functional components"),
     ).toBe("react");
   });
 
   it("detects Next.js mentions", () => {
-    expect(detectLanguageFromMessage("in NextJS, use server components")).toBe(
+    expect(Detector.detectLanguageFromMessage("in NextJS, use server components")).toBe(
       "nextjs",
     );
   });
 
   it("returns undefined for generic messages", () => {
     expect(
-      detectLanguageFromMessage("always handle errors explicitly"),
+      Detector.detectLanguageFromMessage("always handle errors explicitly"),
     ).toBeUndefined();
   });
 
   it("is case-insensitive", () => {
-    expect(detectLanguageFromMessage("in TYPESCRIPT, prefer const")).toBe(
+    expect(Detector.detectLanguageFromMessage("in TYPESCRIPT, prefer const")).toBe(
       "typescript",
     );
   });
@@ -193,7 +187,7 @@ describe("detectLanguageFromMessage", () => {
 
 describe("detectFrameworksFromFiles", () => {
   it("detects Next.js from config file", () => {
-    const result = detectFrameworksFromFiles([
+    const result = Detector.detectFrameworksFromFiles([
       "next.config.js",
       "src/index.ts",
     ]);
@@ -201,29 +195,29 @@ describe("detectFrameworksFromFiles", () => {
   });
 
   it("detects Next.js from .mjs config", () => {
-    const result = detectFrameworksFromFiles(["next.config.mjs"]);
+    const result = Detector.detectFrameworksFromFiles(["next.config.mjs"]);
     expect(result).toContain("nextjs");
   });
 
   it("detects Prisma from schema", () => {
-    const result = detectFrameworksFromFiles(["prisma/schema.prisma"]);
+    const result = Detector.detectFrameworksFromFiles(["prisma/schema.prisma"]);
     expect(result).toContain("prisma");
   });
 
   it("returns empty for no framework indicators", () => {
-    const result = detectFrameworksFromFiles(["src/index.ts", "src/utils.ts"]);
+    const result = Detector.detectFrameworksFromFiles(["src/index.ts", "src/utils.ts"]);
     expect(result).toEqual([]);
   });
 });
 
 describe("getAllSupportedLanguages", () => {
   it("returns a non-empty list", () => {
-    const languages = getAllSupportedLanguages();
+    const languages = Detector.getAllSupportedLanguages();
     expect(languages.length).toBeGreaterThan(0);
   });
 
   it("includes common languages", () => {
-    const languages = getAllSupportedLanguages();
+    const languages = Detector.getAllSupportedLanguages();
     expect(languages).toContain("typescript");
     expect(languages).toContain("javascript");
     expect(languages).toContain("go");

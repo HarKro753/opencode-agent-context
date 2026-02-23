@@ -15,27 +15,39 @@ You explain a pattern to your coding agent. It nods. Next session, it's gone —
 npm install opencode-agent-context
 ```
 
-Then register it in your `.opencode/config.json`:
+Then register it in your `opencode.json`:
 
 ```json
 {
-  "plugins": {
-    "agent-context": {
-      "module": "opencode-agent-context"
-    }
-  }
+  "plugin": ["opencode-agent-context"]
 }
 ```
 
 ## How It Works
 
-### Automatic Rule Detection
+### The agent reasons about what to remember
 
-Just talk to your agent normally. When you express a preference, convention, or architectural decision, the plugin detects it and saves it automatically.
+After each conversation turn, when the session goes idle, the plugin spins up a **separate LLM session** to analyze what you said. It reasons about your messages and decides which preferences, conventions, or architectural decisions are worth persisting — then saves them automatically.
 
-Trigger phrases like **"always"**, **"never"**, **"prefer"**, **"because"**, **"avoid"**, and **"use X for Y"** are picked up by a lightweight heuristic — no LLM calls, no latency.
+No keyword matching. No regex heuristics. The LLM decides.
+
+This means natural conversation works:
+
+```
+You:   We should probably stop using default exports in this codebase.
+       They make refactoring way harder and the DX with auto-imports
+       is just worse.
+
+Agent: [works on your request]
+
+       ✓ 1 rule saved to typescript context
+```
+
+The plugin understood that was a preference worth remembering — not because you said "always" or "never", but because an LLM reasoned about it.
 
 ### Slash Commands
+
+For explicit control, two tools are available:
 
 | Command            | Description                                  |
 | ------------------ | -------------------------------------------- |
@@ -59,37 +71,45 @@ Human-readable. Version-controllable. Editable by hand whenever you want.
 
 ### Session Injection
 
-On every session start and compaction, the plugin detects your project's languages from file extensions and injects the relevant rules back into the agent's context. Rules tagged `general` are always included.
+On every compaction, the plugin detects your project's languages from file extensions and injects the relevant rules back into the agent's context. Rules tagged `general` are always included.
 
 ## Example
 
 **Session 1** — you're working on a TypeScript project:
 
 ```
-You:   Always use named exports because default exports
-       make refactoring harder.
+You:   We use Drizzle for the database layer in this project, not Prisma.
+       And always handle errors explicitly — no silent catches.
 
-Agent: [continues working]
+Agent: Got it, I'll use Drizzle for all DB operations.
 
-       ✓ Rule saved to typescript context
+       ✓ 2 rules saved to typescript, general context
 ```
 
-Behind the scenes, `.opencode/context/typescript.md` now contains:
+Behind the scenes, the plugin:
+
+1. Waited for the session to go idle
+2. Spun up a throwaway LLM session
+3. Asked it: "Analyze these user messages. What rules should be persisted?"
+4. Got back: `[{"rule": "Use Drizzle for the database layer, not Prisma.", "language": "typescript"}, {"rule": "Always handle errors explicitly — no silent catches.", "language": "general"}]`
+5. Saved both rules and cleaned up the extraction session
+
+`.opencode/context/typescript.md` now contains:
 
 ```markdown
-# TypeScript Rules
+# Typescript Rules
 
-- Always use named exports because default exports make refactoring harder.
+- Use Drizzle for the database layer, not Prisma.
 ```
 
 **Session 2** — you open the same project:
 
 ```
-Agent: [automatically has your TypeScript rules in context]
+Agent: [automatically has your rules injected into context]
 
-You:   Refactor the auth module.
+You:   Add a new users table with email and name fields.
 
-Agent: [uses named exports, exactly as you specified]
+Agent: [uses Drizzle, handles errors explicitly — exactly as you specified]
 ```
 
 No reminders needed.
@@ -100,6 +120,38 @@ No reminders needed.
 You:   /remember in Go, prefer table-driven tests
 
        ✓ Rule saved to go context
+```
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│  User's conversation session                      │
+│                                                   │
+│  You: "prefer named exports because..."           │
+│  Agent: [works on your request]                   │
+│  ...session goes idle...                          │
+└───────────────────┬──────────────────────────────┘
+                    │ session.idle event
+                    ▼
+┌──────────────────────────────────────────────────┐
+│  Plugin: rule extraction                          │
+│                                                   │
+│  1. Collect user messages from this session        │
+│  2. Create throwaway LLM session                  │
+│  3. Prompt: "Extract rules from these messages"   │
+│  4. Parse JSON response                           │
+│  5. Save rules to .opencode/context/*.md          │
+│  6. Delete throwaway session                      │
+└──────────────────────────────────────────────────┘
+                    │
+                    ▼
+┌──────────────────────────────────────────────────┐
+│  Next session / compaction                        │
+│                                                   │
+│  experimental.session.compacting hook injects     │
+│  saved rules back into the agent's context        │
+└──────────────────────────────────────────────────┘
 ```
 
 ## Supported Languages
@@ -150,11 +202,12 @@ The plugin also exports its internals for programmatic use:
 import {
   detectLanguagesFromFiles,
   detectLanguageFromFilePath,
-  isRememberWorthy,
   extractRule,
   addRule,
   getAllRules,
   buildContextInjection,
+  buildExtractionPrompt,
+  parseExtractionResponse,
 } from "opencode-agent-context";
 ```
 

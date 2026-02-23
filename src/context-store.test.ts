@@ -2,13 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import {
-  readRules,
-  addRule,
-  getAllRules,
-  getContextFileContent,
-  listContextFiles,
-} from "./context-store.js";
+import { ContextStore } from "./context-store.js";
 
 const TEST_ROOT = join(tmpdir(), `oac-test-${Date.now()}`);
 const CONTEXT_DIR = join(TEST_ROOT, ".opencode", "context");
@@ -23,7 +17,7 @@ afterEach(() => {
 
 describe("readRules", () => {
   it("returns empty array when no context file exists", () => {
-    const rules = readRules(TEST_ROOT, "typescript");
+    const rules = ContextStore.readRules(TEST_ROOT, "typescript");
     expect(rules).toEqual([]);
   });
 
@@ -35,7 +29,7 @@ describe("readRules", () => {
       "utf-8",
     );
 
-    const rules = readRules(TEST_ROOT, "typescript");
+    const rules = ContextStore.readRules(TEST_ROOT, "typescript");
     expect(rules).toEqual([
       "Always use named exports.",
       "Prefer const over let.",
@@ -50,7 +44,7 @@ describe("readRules", () => {
       "utf-8",
     );
 
-    const rules = readRules(TEST_ROOT, "general");
+    const rules = ContextStore.readRules(TEST_ROOT, "general");
     expect(rules).toEqual(["Rule one.", "Rule two."]);
   });
 
@@ -62,7 +56,7 @@ describe("readRules", () => {
       "utf-8",
     );
 
-    const rules = readRules(TEST_ROOT, "go");
+    const rules = ContextStore.readRules(TEST_ROOT, "go");
     expect(rules).toEqual(["Prefer table-driven tests.", "Use error wrapping."]);
   });
 
@@ -74,14 +68,14 @@ describe("readRules", () => {
       "utf-8",
     );
 
-    const rules = readRules(TEST_ROOT, "python");
+    const rules = ContextStore.readRules(TEST_ROOT, "python");
     expect(rules).toEqual(["Valid rule."]);
   });
 });
 
 describe("addRule", () => {
   it("creates context dir and file when they do not exist", () => {
-    addRule(TEST_ROOT, "typescript", "Use strict mode.");
+    ContextStore.addRule(TEST_ROOT, "typescript", "Use strict mode.");
 
     expect(existsSync(CONTEXT_DIR)).toBe(true);
     expect(existsSync(join(CONTEXT_DIR, "typescript.md"))).toBe(true);
@@ -99,7 +93,7 @@ describe("addRule", () => {
       "utf-8",
     );
 
-    addRule(TEST_ROOT, "go", "New rule here.");
+    ContextStore.addRule(TEST_ROOT, "go", "New rule here.");
 
     const content = readFileSync(join(CONTEXT_DIR, "go.md"), "utf-8");
     expect(content).toContain("- Existing rule.");
@@ -107,42 +101,42 @@ describe("addRule", () => {
   });
 
   it("prevents duplicate rules (case-insensitive)", () => {
-    addRule(TEST_ROOT, "general", "Handle errors explicitly.");
-    addRule(TEST_ROOT, "general", "handle errors explicitly.");
-    addRule(TEST_ROOT, "general", "HANDLE ERRORS EXPLICITLY.");
+    ContextStore.addRule(TEST_ROOT, "general", "Handle errors explicitly.");
+    ContextStore.addRule(TEST_ROOT, "general", "handle errors explicitly.");
+    ContextStore.addRule(TEST_ROOT, "general", "HANDLE ERRORS EXPLICITLY.");
 
-    const rules = readRules(TEST_ROOT, "general");
+    const rules = ContextStore.readRules(TEST_ROOT, "general");
     expect(rules).toHaveLength(1);
   });
 
   it("sanitizes language names to safe filenames", () => {
-    addRule(TEST_ROOT, "C++", "Use smart pointers.");
+    ContextStore.addRule(TEST_ROOT, "C++", "Use smart pointers.");
 
     expect(existsSync(join(CONTEXT_DIR, "c.md"))).toBe(true);
   });
 
   it("handles multiple languages independently", () => {
-    addRule(TEST_ROOT, "typescript", "TS rule.");
-    addRule(TEST_ROOT, "go", "Go rule.");
-    addRule(TEST_ROOT, "python", "Python rule.");
+    ContextStore.addRule(TEST_ROOT, "typescript", "TS rule.");
+    ContextStore.addRule(TEST_ROOT, "go", "Go rule.");
+    ContextStore.addRule(TEST_ROOT, "python", "Python rule.");
 
-    expect(readRules(TEST_ROOT, "typescript")).toEqual(["TS rule."]);
-    expect(readRules(TEST_ROOT, "go")).toEqual(["Go rule."]);
-    expect(readRules(TEST_ROOT, "python")).toEqual(["Python rule."]);
+    expect(ContextStore.readRules(TEST_ROOT, "typescript")).toEqual(["TS rule."]);
+    expect(ContextStore.readRules(TEST_ROOT, "go")).toEqual(["Go rule."]);
+    expect(ContextStore.readRules(TEST_ROOT, "python")).toEqual(["Python rule."]);
   });
 });
 
 describe("getAllRules", () => {
   it("returns empty object when no context dir exists", () => {
-    expect(getAllRules(TEST_ROOT)).toEqual({});
+    expect(ContextStore.getAllRules(TEST_ROOT)).toEqual({});
   });
 
   it("returns all rules grouped by language", () => {
-    addRule(TEST_ROOT, "typescript", "Use named exports.");
-    addRule(TEST_ROOT, "go", "Prefer table-driven tests.");
-    addRule(TEST_ROOT, "general", "Handle errors explicitly.");
+    ContextStore.addRule(TEST_ROOT, "typescript", "Use named exports.");
+    ContextStore.addRule(TEST_ROOT, "go", "Prefer table-driven tests.");
+    ContextStore.addRule(TEST_ROOT, "general", "Handle errors explicitly.");
 
-    const allRules = getAllRules(TEST_ROOT);
+    const allRules = ContextStore.getAllRules(TEST_ROOT);
     expect(Object.keys(allRules).sort()).toEqual(["general", "go", "typescript"]);
     expect(allRules["typescript"]).toEqual(["Use named exports."]);
     expect(allRules["go"]).toEqual(["Prefer table-driven tests."]);
@@ -152,9 +146,9 @@ describe("getAllRules", () => {
   it("omits languages with no rules", () => {
     mkdirSync(CONTEXT_DIR, { recursive: true });
     writeFileSync(join(CONTEXT_DIR, "empty.md"), "# Empty Rules\n\n", "utf-8");
-    addRule(TEST_ROOT, "typescript", "A real rule.");
+    ContextStore.addRule(TEST_ROOT, "typescript", "A real rule.");
 
-    const allRules = getAllRules(TEST_ROOT);
+    const allRules = ContextStore.getAllRules(TEST_ROOT);
     expect(allRules).not.toHaveProperty("empty");
     expect(allRules).toHaveProperty("typescript");
   });
@@ -162,7 +156,7 @@ describe("getAllRules", () => {
 
 describe("getContextFileContent", () => {
   it("returns undefined when file does not exist", () => {
-    expect(getContextFileContent(TEST_ROOT, "nonexistent")).toBeUndefined();
+    expect(ContextStore.getContextFileContent(TEST_ROOT, "nonexistent")).toBeUndefined();
   });
 
   it("returns full file content", () => {
@@ -170,22 +164,22 @@ describe("getContextFileContent", () => {
     mkdirSync(CONTEXT_DIR, { recursive: true });
     writeFileSync(join(CONTEXT_DIR, "typescript.md"), expected, "utf-8");
 
-    const content = getContextFileContent(TEST_ROOT, "typescript");
+    const content = ContextStore.getContextFileContent(TEST_ROOT, "typescript");
     expect(content).toBe(expected);
   });
 });
 
 describe("listContextFiles", () => {
   it("returns empty array when dir does not exist", () => {
-    expect(listContextFiles(TEST_ROOT)).toEqual([]);
+    expect(ContextStore.listContextFiles(TEST_ROOT)).toEqual([]);
   });
 
   it("lists languages from existing files", () => {
-    addRule(TEST_ROOT, "typescript", "Rule.");
-    addRule(TEST_ROOT, "go", "Rule.");
-    addRule(TEST_ROOT, "python", "Rule.");
+    ContextStore.addRule(TEST_ROOT, "typescript", "Rule.");
+    ContextStore.addRule(TEST_ROOT, "go", "Rule.");
+    ContextStore.addRule(TEST_ROOT, "python", "Rule.");
 
-    const files = listContextFiles(TEST_ROOT);
+    const files = ContextStore.listContextFiles(TEST_ROOT);
     expect(files.sort()).toEqual(["go", "python", "typescript"]);
   });
 
@@ -194,7 +188,7 @@ describe("listContextFiles", () => {
     writeFileSync(join(CONTEXT_DIR, "typescript.md"), "# TS\n", "utf-8");
     writeFileSync(join(CONTEXT_DIR, "notes.txt"), "not a rule\n", "utf-8");
 
-    const files = listContextFiles(TEST_ROOT);
+    const files = ContextStore.listContextFiles(TEST_ROOT);
     expect(files).toEqual(["typescript"]);
   });
 });
