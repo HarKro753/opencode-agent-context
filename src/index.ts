@@ -42,7 +42,11 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
         }
       }
     } catch {
-      await logToService(ctx.client, "debug", "Could not auto-detect project languages");
+      await logToService(
+        ctx.client,
+        "debug",
+        "Could not auto-detect project languages",
+      );
     }
 
     await logToService(ctx.client, "info", "Agent context plugin initialized", {
@@ -61,8 +65,13 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
       return;
     }
 
-    const existingRules = Object.values(ContextStore.getAllRules(projectRoot)).flat();
-    const prompt = RuleReasoner.buildExtractionPrompt(userMessages, existingRules);
+    const existingRules = Object.values(
+      ContextStore.getAllRules(projectRoot),
+    ).flat();
+    const prompt = RuleReasoner.buildExtractionPrompt(
+      userMessages,
+      existingRules,
+    );
     let session: { id: string } | undefined;
 
     try {
@@ -73,33 +82,55 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
       const result = await ctx.client.session.prompt({
         path: { id: session.id },
         body: {
-          parts: [{ type: "text", text: RuleReasoner.getSystemPrompt() + "\n\n" + prompt }],
+          parts: [
+            {
+              type: "text",
+              text: RuleReasoner.getSystemPrompt() + "\n\n" + prompt,
+            },
+          ],
         },
       });
 
       const responseText = RuleReasoner.extractTextFromResult(result);
       if (!responseText) {
-        await logToService(ctx.client, "debug", "No response from extraction session");
+        await logToService(
+          ctx.client,
+          "debug",
+          "No response from extraction session",
+        );
         return;
       }
 
       const extracted = RuleReasoner.parseExtractionResponse(responseText);
       if (extracted.length === 0) {
-        await logToService(ctx.client, "debug", "LLM found no new rules to extract");
+        await logToService(
+          ctx.client,
+          "debug",
+          "LLM found no new rules to extract",
+        );
         lastExtractedAt = currentMessageCount;
         return;
       }
 
       for (const { rule, language } of extracted) {
-        ContextStore.addRule(projectRoot, language, RuleReasoner.normalizeRule(rule));
+        ContextStore.addRule(
+          projectRoot,
+          language,
+          RuleReasoner.normalizeRule(rule),
+        );
         activeLanguages.add(language);
       }
 
       lastExtractedAt = currentMessageCount;
 
-      await logToService(ctx.client, "info", `Extracted ${extracted.length} rules from conversation`, {
-        rules: extracted,
-      });
+      await logToService(
+        ctx.client,
+        "info",
+        `Extracted ${extracted.length} rules from conversation`,
+        {
+          rules: extracted,
+        },
+      );
 
       const uniqueLanguages = [...new Set(extracted.map((r) => r.language))];
       const plural = extracted.length > 1 ? "s" : "";
@@ -113,10 +144,14 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
         .catch(() => {});
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      await logToService(ctx.client, "warn", "Rule extraction failed", { error: errorMessage });
+      await logToService(ctx.client, "warn", "Rule extraction failed", {
+        error: errorMessage,
+      });
     } finally {
       if (session) {
-        await ctx.client.session.delete({ path: { id: session.id } }).catch(() => {});
+        await ctx.client.session
+          .delete({ path: { id: session.id } })
+          .catch(() => {});
       }
     }
   }
@@ -129,9 +164,12 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
         event.type === "message.updated" &&
         event.properties &&
         (event.properties as Record<string, unknown>)["role"] === "user" &&
-        typeof (event.properties as Record<string, unknown>)["text"] === "string"
+        typeof (event.properties as Record<string, unknown>)["text"] ===
+          "string"
       ) {
-        userMessages.push((event.properties as Record<string, unknown>)["text"] as string);
+        userMessages.push(
+          (event.properties as Record<string, unknown>)["text"] as string,
+        );
       }
 
       if (event.type === "session.idle") {
@@ -142,15 +180,18 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
     "tool.execute.after": async (input, _output) => {
       await ensureInitialized();
 
-      const isFileRead = input.tool === "read"
-        && input.args
-        && typeof input.args["filePath"] === "string";
+      const isFileRead =
+        input.tool === "read" &&
+        input.args &&
+        typeof input.args["filePath"] === "string";
 
       if (!isFileRead) {
         return;
       }
 
-      const lang = Detector.detectLanguageFromFilePath(input.args!["filePath"] as string);
+      const lang = Detector.detectLanguageFromFilePath(
+        input.args!["filePath"] as string,
+      );
       if (lang) {
         activeLanguages.add(lang);
       }
@@ -168,10 +209,15 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
         output.context.push(entry);
       }
 
-      await logToService(ctx.client, "debug", "Injected context into compaction", {
-        languages: Array.from(activeLanguages),
-        contextCount: contextStrings.length,
-      });
+      await logToService(
+        ctx.client,
+        "debug",
+        "Injected context into compaction",
+        {
+          languages: Array.from(activeLanguages),
+          contextCount: contextStrings.length,
+        },
+      );
     },
 
     tool: {
@@ -203,7 +249,11 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
           ContextStore.addRule(context.directory, language, cleaned);
           activeLanguages.add(language);
 
-          await logToService(ctx.client, "info", `Rule explicitly saved to ${language}: ${cleaned}`);
+          await logToService(
+            ctx.client,
+            "info",
+            `Rule explicitly saved to ${language}: ${cleaned}`,
+          );
 
           return `Rule saved to ${language} context:\n> ${cleaned}`;
         },
