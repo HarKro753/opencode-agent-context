@@ -285,6 +285,8 @@ export const AgentContextPlugin: Plugin = async (ctx) => {
   };
 };
 
+export default AgentContextPlugin;
+
 export { Detector } from "./detector.js";
 export { ContextStore } from "./context-store.js";
 export { Injector } from "./injector.js";

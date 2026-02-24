@@ -1,6 +1,6 @@
 {
   "name": "opencode-agent-context",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Persistent, language-specific memory for your OpenCode coding agent. Say it once, your agent remembers it forever.",
   "type": "module",
   "main": "dist/index.js",
